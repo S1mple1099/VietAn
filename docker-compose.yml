@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  monitoring:
+    # App .NET 8 hiện tại của bạn (Blazor Server + API chung 1 project: Monitoring.Host)
+    build:
+      context: .            # Dùng Dockerfile ngay trong D:\VIETAN1test
+      dockerfile: Dockerfile
+    container_name: monitoring-app
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Lắng nghe trên cổng 80 trong container (Dockerfile đã đặt Kestrel listen 0.0.0.0:80)
+      ASPNETCORE_URLS: http://0.0.0.0:80
+
+      # Kết nối SQLite (file-based DB) – file nằm trong /data/app.db
+      ConnectionStrings__Default: Data Source=/data/app.db
+
+      # Cấu hình Redis cho app (service name: redis)
+      ConnectionStrings__Redis: redis:6379,abortConnect=false
+    ports:
+      # Host:Container -> truy cập UI tại http://localhost:8080
+      - "8080:80"
+    volumes:
+      # Lưu file SQLite tại /data trong container, gắn vào volume tên appdata
+      - appdata:/data
+    depends_on:
+      - redis
+    networks:
+      - backend-network
+
+  redis:
+    # Redis 7 dùng cho cache / distributed state
+    image: redis:7
+    container_name: redis
+    ports:
+      # Có thể bỏ nếu không cần truy cập Redis từ host
+      - "6379:6379"
+    networks:
+      - backend-network
+
+volumes:
+  # Volume để lưu trữ file SQLite (app.db) bền vững
+  appdata:
+    driver: local
+
+networks:
+  # Network chung cho tất cả service (monitoring, redis)
+  backend-network:
+    driver: bridge
+
