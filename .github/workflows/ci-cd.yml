@@ -27,8 +27,7 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+        # submodules: recursive - tắt vì BlazorUI submodule thiếu URL, sẽ convert sang folder thường
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
