@@ -17,21 +17,20 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Get connection string from configuration
+        // Lấy connection string từ configuration (env vars override appsettings theo thứ tự load)
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-        // Register DbContext with SQLite provider
+        // SQLite provider (Data Source=...)
         services.AddDbContext<MonitoringDbContext>(options =>
         {
             options.UseSqlite(connectionString, sqliteOptions =>
             {
-                // SQLite-specific options
                 sqliteOptions.MigrationsAssembly(typeof(MonitoringDbContext).Assembly.FullName);
             });
 
-            // Enable sensitive data logging in development only
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            // Chỉ bật trong Development để tránh lộ dữ liệu nhạy cảm ở Production
+            if (string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase))
             {
                 options.EnableSensitiveDataLogging();
                 options.EnableDetailedErrors();
