@@ -6,6 +6,7 @@ COPY MonitoringSystem.sln ./
 COPY Monitoring.Domain/ ./Monitoring.Domain/
 COPY Monitoring.Application/ ./Monitoring.Application/
 COPY Monitoring.Infrastructure/ ./Monitoring.Infrastructure/
+COPY Monitoring.Host.BlazorUI/ ./Monitoring.Host.BlazorUI/
 COPY Monitoring.Host/ ./Monitoring.Host/
 
 RUN dotnet restore
