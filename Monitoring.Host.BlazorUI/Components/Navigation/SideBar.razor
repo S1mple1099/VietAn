@@ -1,0 +1,39 @@
+<aside class="sidebar @(IsOpen ? "is-open" : "is-collapsed")" data-open="@IsOpen">
+    <div class="sidebar-inner">
+        <nav class="nav" aria-label="Sidebar">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="HandleNavigate">
+                <img src="icon/home.svg" alt="Home" class="nav-icon" />
+                <span class="nav-text">Tổng Quan</span>
+            </NavLink>
+
+            <NavLink class="nav-link" href="monitor" @onclick="HandleNavigate">
+                <img src="icon/analytics.svg" alt="Analytics" class="nav-icon" />
+                <span class="nav-text">Giám Sát</span>
+            </NavLink>
+
+            <NavLink class="nav-link" href="history" @onclick="HandleNavigate">
+                <img src="icon/event.svg" alt="Event" class="nav-icon" />
+                <span class="nav-text">Lịch Sử</span>
+            </NavLink>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button type="button" class="collapse-button" @onclick="HandleToggle">
+                <span class="footer-icon">≡</span>
+                <span>Collapse</span>
+            </button>
+        </div>
+    </div>
+</aside>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> OnToggle { get; set; }
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private Task HandleNavigate()
+        => OnNavigate.InvokeAsync();
+
+    private Task HandleToggle(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+        => OnToggle.InvokeAsync(e);
+}

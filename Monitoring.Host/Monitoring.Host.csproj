@@ -24,6 +24,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Monitoring.Application\Monitoring.Application.csproj" />
     <ProjectReference Include="..\Monitoring.Infrastructure\Monitoring.Infrastructure.csproj" />
+    <ProjectReference Include="..\Monitoring.Host.BlazorUI\Monitoring.Host.BlazorUI.csproj" />
+  </ItemGroup>
+
+  <!-- Exclude old BlazorUI submodule folder (replaced by Monitoring.Host.BlazorUI RCL project) -->
+  <ItemGroup>
+    <Compile Remove="BlazorUI\**\*" />
+    <Content Remove="BlazorUI\**\*" />
+    <None Remove="BlazorUI\**\*" />
   </ItemGroup>
 
 </Project>

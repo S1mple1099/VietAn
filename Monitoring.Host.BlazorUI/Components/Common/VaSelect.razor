@@ -1,0 +1,87 @@
+@typeparam TItem
+
+<div class="va-select" data-open="@_open">
+    <button type="button"
+            class="va-select__trigger @TriggerClass"
+            style="@Style"
+            @onclick="Toggle"
+            aria-haspopup="listbox"
+            aria-expanded="@_open"
+            aria-label="@AriaLabel">
+        <span class="va-select__value">@CurrentLabel</span>
+        <span class="va-select__caret" aria-hidden="true">▾</span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="va-select__backdrop" @onclick="Close" />
+        <div class="va-select__menu" role="listbox">
+            @if (Items is not null)
+            {
+                foreach (var item in Items)
+                {
+                    var itemValue = GetValue(item);
+                    var selected = string.Equals(itemValue, Value, StringComparison.Ordinal);
+
+                    <button type="button"
+                            class="va-select__option @(selected ? "is-selected" : "")"
+                            role="option"
+                            aria-selected="@selected"
+                            @onclick="() => Select(itemValue)">
+                        @GetLabel(item)
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IEnumerable<TItem>? Items { get; set; }
+
+    [Parameter] public required Func<TItem, string> GetValue { get; set; }
+    [Parameter] public required Func<TItem, string> GetLabel { get; set; }
+
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public string AriaLabel { get; set; } = "Dropdown";
+
+    private bool _open;
+
+    private string TriggerClass => string.IsNullOrWhiteSpace(Class) ? string.Empty : Class;
+
+    private string CurrentLabel
+    {
+        get
+        {
+            if (Items is null)
+            {
+                return string.Empty;
+            }
+
+            foreach (var item in Items)
+            {
+                var itemValue = GetValue(item);
+                if (string.Equals(itemValue, Value, StringComparison.Ordinal))
+                {
+                    return GetLabel(item);
+                }
+            }
+
+            return Value ?? string.Empty;
+        }
+    }
+
+    private void Toggle() => _open = !_open;
+
+    private void Close() => _open = false;
+
+    private async Task Select(string? newValue)
+    {
+        _open = false;
+        await ValueChanged.InvokeAsync(newValue);
+    }
+}

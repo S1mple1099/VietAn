@@ -1,0 +1,41 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <TopBar />
+
+    <div class="app-body">
+        <SideBar IsOpen="_sidebarOpen" OnNavigate="KeepSidebarState" OnToggle="ToggleSidebar" />
+        <div class="sidebar-overlay" data-open="@_sidebarOpen" @onclick="CloseSidebar" />
+
+        <main class="main">
+            <article class="content">
+                @Body
+            </article>
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private bool _sidebarOpen = true;
+
+    private Task ToggleSidebar()
+    {
+        _sidebarOpen = !_sidebarOpen;
+        return Task.CompletedTask;
+    }
+
+    private Task CloseSidebar()
+    {
+        _sidebarOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private Task KeepSidebarState()
+        => Task.CompletedTask;
+}

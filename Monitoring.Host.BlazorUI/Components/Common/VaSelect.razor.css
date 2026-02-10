@@ -1,0 +1,74 @@
+.va-select {
+    position: relative;
+    display: inline-flex;
+}
+
+.va-select__trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    border: 1px solid rgba(8, 160, 177, 0.55);
+    height: 33.99px;
+    border-radius: 0.45rem;
+    background: #ffffff;
+    color: #0b4c53;
+    cursor: pointer;
+}
+
+.va-select__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.va-select__caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    opacity: 0.85;
+}
+
+.va-select__backdrop {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 90;
+}
+
+.va-select__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 100%;
+    border: 1px solid rgba(8, 160, 177, 0.55);
+    border-radius: 0.45rem;
+    background: #ffffff;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    padding: 0.35rem;
+    z-index: 100;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.va-select__option {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: #0b4c53;
+    text-align: left;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.35rem;
+    cursor: pointer;
+}
+
+.va-select__option:hover {
+    background: rgba(8, 160, 177, 0.12);
+}
+
+.va-select__option.is-selected {
+    background: rgba(8, 160, 177, 0.18);
+    font-weight: 700;
+}

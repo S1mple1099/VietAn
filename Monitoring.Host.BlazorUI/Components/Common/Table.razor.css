@@ -1,0 +1,45 @@
+.table-shell {
+	width: 100%;
+	border-radius: 0;
+	border: 1px solid rgba(8, 160, 177, 0.4);
+	overflow: auto;
+	background: #ffffff;
+}
+
+.table-shell ::deep table.grid {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.table-shell ::deep thead th {
+	position: sticky;
+	top: 0;
+	background: #0a7681;
+	color: #ffffff;
+	font-size: 13px;
+	line-height: 1.1;
+	font-weight: 800;
+	text-align: center;
+	padding: 0.8rem 0.35rem;
+	height: 44px;
+	border-right: 1px solid rgba(255, 255, 255, 0.22);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	white-space: nowrap;
+}
+
+.table-shell ::deep tbody td {
+	font-size: 13px;
+	padding: 0.7rem 0.45rem;
+	border-right: 1px solid rgba(8, 160, 177, 0.35);
+	border-bottom: 1px solid rgba(8, 160, 177, 0.35);
+	height: 42px;
+	white-space: nowrap;
+}
+
+.table-shell ::deep tbody tr:nth-child(even) td {
+	background: #f7fbfc;
+}
+
+.table-shell ::deep tbody tr:hover td {
+	background: rgba(8, 160, 177, 0.10);
+}

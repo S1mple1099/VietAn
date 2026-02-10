@@ -1,0 +1,313 @@
+@page "/history"
+@layout Layout.MainLayout
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Lịch Sử</PageTitle>
+
+<div class="history">
+	<div class="history-toolbar">
+		<div class="field">
+			<label>From</label>
+			<input type="date" class="input" @bind="FromDate" @bind:after="OnDateChanged" />
+		</div>
+
+		<div class="field">
+			<label>To</label>
+			<input type="date" class="input" @bind="ToDate" @bind:after="OnDateChanged" />
+		</div>
+
+		<div class="spacer"></div>
+
+		<div class="field select">
+			<VaSelect TItem="EventTypeOptionDto"
+					 Class="input"
+					 Items="EventTypes"
+					 @bind-Value="SelectedEventType"
+					 GetValue="t => t.Id"
+					 GetLabel="t => t.Name"
+					 AriaLabel="Loại sự kiện" />
+		</div>
+
+		<div class="search">
+			<span class="search-icon" aria-hidden="true">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" focusable="false">
+					<path d="M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12Zm0-2a8 8 0 1 0 4.9 14.3l4.4 4.4a1 1 0 0 0 1.4-1.4l-4.4-4.4A8 8 0 0 0 10 2Z" />
+				</svg>
+			</span>
+			<input class="input" placeholder="Tìm kiếm" @bind-value="SearchText" @bind-value:event="oninput" />
+		</div>
+
+		<button type="button" class="btn-export" @onclick="ExportExcel" disabled="@_isLoading">
+			@if (_isLoading)
+			{
+				<span>Đang tải...</span>
+			}
+			else
+			{
+				<span>Xuất Excel</span>
+			}
+		</button>
+	</div>
+
+	@if (_isLoading && (_pagedResult == null || _pagedResult.Items.Count() == 0))
+	{
+		<div style="text-align: center; padding: 2rem;">
+			<p>Đang tải dữ liệu...</p>
+		</div>
+	}
+	else
+	{
+		<Table MinWidth="860px" AriaLabel="Bảng lịch sử">
+			<Header>
+				<tr>
+					<th class="col-id">ID</th>
+					<th class="col-time">Thời Gian</th>
+					<th class="col-device">Thiết Bị</th>
+					<th class="col-account">Tài Khoản</th>
+					<th class="col-type">Loại Sự Kiện</th>
+					<th class="col-desc">Mô Tả</th>
+				</tr>
+			</Header>
+			<Body>
+				@if (_pagedResult == null || _pagedResult.Items.Count() == 0)
+				{
+					<tr>
+						<td class="empty" colspan="6">Không có dữ liệu</td>
+					</tr>
+				}
+				else
+				{
+					@foreach (var row in _pagedResult.Items)
+					{
+						<tr>
+							<td class="center">@row.Id</td>
+							<td class="center">@row.Time</td>
+							<td class="center">@row.Device</td>
+							<td class="center">@row.Account</td>
+							<td class="center">
+								<span class="event-type @GetEventClass(row.Type)">@row.Type</span>
+							</td>
+							<td class="center">@row.Description</td>
+						</tr>
+					}
+				}
+			</Body>
+		</Table>
+
+		@if (_pagedResult != null)
+		{
+			<div class="pager" aria-label="Phân trang">
+				<button type="button" class="pager-btn" disabled="@(!_pagedResult.HasPreviousPage)" @onclick="GoPrev" aria-label="Trang trước">
+					‹
+				</button>
+				<div class="pager-info">@_pagedResult.Page / @_pagedResult.TotalPages</div>
+				<button type="button" class="pager-btn" disabled="@(!_pagedResult.HasNextPage)" @onclick="GoNext" aria-label="Trang sau">
+					›
+				</button>
+			</div>
+		}
+	}
+</div>
+
+@code {
+	private const int PageSize = 15;
+	private int _currentPage = 1;
+	private PagedResult<HistoryRowDto>? _pagedResult;
+	private bool _isLoading = false;
+	private System.Threading.Timer? _searchDebounceTimer;
+
+	private DateTime FromDate { get; set; } = DateTime.Today;
+	private DateTime ToDate { get; set; } = DateTime.Today;
+
+	private string _selectedEventType = "all";
+	private string SelectedEventType
+	{
+		get => _selectedEventType;
+		set
+		{
+			if (string.Equals(_selectedEventType, value, StringComparison.Ordinal)) return;
+			_selectedEventType = value;
+			_currentPage = 1;
+			_ = LoadDataAsync();
+		}
+	}
+
+	private string _searchText = string.Empty;
+	private string SearchText
+	{
+		get => _searchText;
+		set
+		{
+			if (string.Equals(_searchText, value, StringComparison.Ordinal)) return;
+			_searchText = value;
+			_currentPage = 1;
+			_searchDebounceTimer?.Dispose();
+			_searchDebounceTimer = new System.Threading.Timer(async _ =>
+			{
+				await InvokeAsync(async () =>
+				{
+					await LoadDataAsync();
+					StateHasChanged();
+				});
+			}, null, 500, Timeout.Infinite);
+		}
+	}
+
+	private List<EventTypeOptionDto> EventTypes { get; set; } = [];
+
+	protected override async Task OnInitializedAsync()
+	{
+		await LoadEventTypesAsync();
+		await LoadDataAsync();
+	}
+
+	private async Task LoadEventTypesAsync()
+	{
+		try
+		{
+			var response = await Http.GetFromJsonAsync<List<EventTypeOptionDto>>("api/history/event-types");
+			if (response != null)
+				EventTypes = response;
+		}
+		catch
+		{
+			EventTypes =
+			[
+				new("all", "Loại sự kiện"),
+				new("login", "Đăng Nhập"),
+				new("error", "Lỗi"),
+				new("ok", "Hoạt Động Tốt"),
+				new("warn", "Cảnh Báo")
+			];
+		}
+	}
+
+	private async Task LoadDataAsync()
+	{
+		_isLoading = true;
+		try
+		{
+			var request = new GetHistoryRequest
+			{
+				EventType = SelectedEventType,
+				SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
+				FromDate = FromDate,
+				ToDate = ToDate,
+				IncludeLoginLogs = true,
+				Page = _currentPage,
+				PageSize = PageSize
+			};
+
+			var response = await Http.PostAsJsonAsync("api/history/search", request);
+
+			if (response.IsSuccessStatusCode)
+			{
+				var data = await response.Content.ReadFromJsonAsync<PagedResult<HistoryRowDto>>();
+				if (data != null)
+					_pagedResult = data;
+			}
+			else
+			{
+				_pagedResult = new PagedResult<HistoryRowDto>
+				{
+					Items = [],
+					TotalCount = 0,
+					Page = 1,
+					PageSize = PageSize
+				};
+			}
+		}
+		catch
+		{
+			_pagedResult = new PagedResult<HistoryRowDto>
+			{
+				Items = [],
+				TotalCount = 0,
+				Page = 1,
+				PageSize = PageSize
+			};
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+	}
+
+	private void OnDateChanged()
+	{
+		_currentPage = 1;
+		_ = LoadDataAsync();
+	}
+
+	private void GoPrev()
+	{
+		if (_pagedResult == null || !_pagedResult.HasPreviousPage) return;
+		_currentPage--;
+		_ = LoadDataAsync();
+	}
+
+	private void GoNext()
+	{
+		if (_pagedResult == null || !_pagedResult.HasNextPage) return;
+		_currentPage++;
+		_ = LoadDataAsync();
+	}
+
+	private static string GetEventClass(string type)
+		=> type switch
+		{
+			"Lỗi" => "is-error",
+			"Cảnh Báo" => "is-warn",
+			"Hoạt Động Tốt" => "is-ok",
+			"Đăng Nhập" => "is-login",
+			_ => ""
+		};
+
+	private async Task ExportExcel()
+	{
+		try
+		{
+			_isLoading = true;
+			StateHasChanged();
+
+			var request = new GetHistoryRequest
+			{
+				EventType = SelectedEventType,
+				SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
+				FromDate = FromDate,
+				ToDate = ToDate,
+				IncludeLoginLogs = true
+			};
+
+			var queryString = $"?eventType={Uri.EscapeDataString(request.EventType ?? "all")}" +
+				$"&fromDate={request.FromDate:yyyy-MM-dd}" +
+				$"&toDate={request.ToDate:yyyy-MM-dd}" +
+				$"&includeLoginLogs={request.IncludeLoginLogs}";
+
+			if (!string.IsNullOrWhiteSpace(request.SearchText))
+				queryString += $"&searchText={Uri.EscapeDataString(request.SearchText)}";
+
+			var response = await Http.GetAsync($"api/history/export{queryString}");
+
+			if (response.IsSuccessStatusCode)
+			{
+				var bytes = await response.Content.ReadAsByteArrayAsync();
+				var fileName = $"history_{FromDate:yyyyMMdd}_{ToDate:yyyyMMdd}.xlsx";
+				var base64 = Convert.ToBase64String(bytes);
+				await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
+			}
+		}
+		finally
+		{
+			_isLoading = false;
+			StateHasChanged();
+		}
+	}
+
+	public void Dispose()
+	{
+		_searchDebounceTimer?.Dispose();
+	}
+}

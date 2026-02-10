@@ -1,0 +1,261 @@
+@page "/monitor"
+@layout Layout.MainLayout
+
+<PageTitle>Giám Sát</PageTitle>
+
+<div class="monitor">
+	<div class="monitor-toolbar">
+		<div class="field">
+			<label>From</label>
+			<input type="date" class="input" @bind="FromDate" />
+		</div>
+
+		<div class="field">
+			<label>To</label>
+			<input type="date" class="input" @bind="ToDate" />
+		</div>
+
+		<div class="spacer"></div>
+
+		<div class="field select">
+			<VaSelect TItem="PumpOption"
+					 Class="input"
+					 Items="Pumps"
+					 @bind-Value="SelectedPumpId"
+					 GetValue="p => p.Id"
+					 GetLabel="p => p.Name"
+					 AriaLabel="Chọn bơm" />
+		</div>
+
+		<button type="button" class="btn-export" @onclick="ExportExcel">
+			Xuất Excel
+		</button>
+	</div>
+
+	<Table MinWidth="980px" AriaLabel="Bảng giám sát">
+		<Header>
+			<tr>
+				<th>Ngày</th>
+				<th>Giờ</th>
+				<th>NĐ Cuộn A (°C)</th>
+				<th>NĐ Cuộn B (°C)</th>
+				<th>NĐ Cuộn C (°C)</th>
+				<th>Đ. Áp RS (V)</th>
+				<th>Đ. Áp ST (V)</th>
+				<th>Đ. Áp TR (V)</th>
+				<th>Đ.Điện R</th>
+				<th>Đ.Điện S</th>
+				<th>Đ.Điện T</th>
+				<th>T.Gian H.Động</th>
+				<th>Mức Bể Xả</th>
+				<th>Mức Bể Hút</th>
+			</tr>
+		</Header>
+		<Body>
+			@if (_filteredRows.Count == 0)
+			{
+				<tr>
+					<td class="empty" colspan="14">Không có dữ liệu</td>
+				</tr>
+			}
+			else
+			{
+				@foreach (var row in PagedRows)
+				{
+					<tr>
+						<td>@row.Date</td>
+						<td>@row.Time</td>
+						<td>@row.TempA</td>
+						<td>@row.TempB</td>
+						<td>@row.TempC</td>
+						<td>@row.Vrs</td>
+						<td>@row.Vst</td>
+						<td>@row.Vtr</td>
+						<td>@row.CurrentR</td>
+						<td>@row.CurrentS</td>
+						<td>@row.CurrentT</td>
+						<td>@row.Runtime</td>
+						<td>@row.TankOut</td>
+						<td>@row.TankIn</td>
+					</tr>
+				}
+			}
+		</Body>
+	</Table>
+
+	<div class="pager" aria-label="Phân trang">
+		<button type="button" class="pager-btn" disabled="@(!HasPrevPage)" @onclick="GoPrev" aria-label="Trang trước">
+			‹
+		</button>
+		<div class="pager-info">@PageNumber / @TotalPages</div>
+		<button type="button" class="pager-btn" disabled="@(!HasNextPage)" @onclick="GoNext" aria-label="Trang sau">
+			›
+		</button>
+	</div>
+</div>
+
+@code {
+	private const int PageSize = 15;
+	private int _pageIndex;
+	private List<MonitorRow> _filteredRows = [];
+
+	private DateTime _fromDate = DateTime.Today;
+	private DateTime FromDate
+	{
+		get => _fromDate;
+		set
+		{
+			if (_fromDate == value) return;
+			_fromDate = value;
+			ResetAndApplyFilters();
+		}
+	}
+
+	private DateTime _toDate = DateTime.Today;
+	private DateTime ToDate
+	{
+		get => _toDate;
+		set
+		{
+			if (_toDate == value) return;
+			_toDate = value;
+			ResetAndApplyFilters();
+		}
+	}
+
+	private string _selectedPumpId = "pump1";
+	private string SelectedPumpId
+	{
+		get => _selectedPumpId;
+		set
+		{
+			if (string.Equals(_selectedPumpId, value, StringComparison.Ordinal)) return;
+			_selectedPumpId = value;
+			ResetAndApplyFilters();
+		}
+	}
+
+	private List<PumpOption> Pumps { get; } =
+	[
+		new("pump1", "Bom 1"),
+		new("pump2", "Bom 2"),
+		new("pump3", "Bom 3")
+	];
+
+	private List<MonitorRow> Rows { get; } = BuildRows();
+
+	protected override void OnInitialized()
+	{
+		ApplyFilters();
+	}
+
+	private static List<MonitorRow> BuildRows()
+	{
+		var pumps = new[] { "pump1", "pump2", "pump3" };
+		var baseTime = DateTime.Today.AddHours(6);
+		var list = new List<MonitorRow>(capacity: 90);
+		for (var i = 0; i < 90; i++)
+		{
+			var pumpId = pumps[i % pumps.Length];
+			var ts = baseTime.AddMinutes(i * 3);
+			var tempA = 55 + (i % 7) * 1.3;
+			var tempB = 56 + (i % 6) * 1.1;
+			var tempC = 54 + (i % 8) * 1.2;
+			var vrs = 380 + (i % 4);
+			var vst = 379 + (i % 5);
+			var vtr = 381 + (i % 3);
+			var curR = 12 + (i % 9) * 0.6;
+			var curS = 11.5 + (i % 8) * 0.55;
+			var curT = 12.2 + (i % 7) * 0.5;
+			var runtimeMinutes = (i * 7) % 500;
+			var tankOut = 35 + (i % 20);
+			var tankIn = 40 + ((i + 7) % 18);
+
+			list.Add(new MonitorRow(
+				pumpId,
+				ts,
+				ts.ToString("dd/MM/yyyy"),
+				ts.ToString("HH:mm:ss"),
+				tempA.ToString("0.0"),
+				tempB.ToString("0.0"),
+				tempC.ToString("0.0"),
+				vrs.ToString("0"),
+				vst.ToString("0"),
+				vtr.ToString("0"),
+				curR.ToString("0.0"),
+				curS.ToString("0.0"),
+				curT.ToString("0.0"),
+				$"{runtimeMinutes / 60:00}:{runtimeMinutes % 60:00}",
+				tankOut.ToString("0"),
+				tankIn.ToString("0")));
+		}
+		return list;
+	}
+
+	private IEnumerable<MonitorRow> PagedRows
+		=> _filteredRows.Skip(_pageIndex * PageSize).Take(PageSize);
+
+	private int TotalPages
+	{
+		get
+		{
+			if (_filteredRows.Count == 0) return 1;
+			return (int)Math.Ceiling(_filteredRows.Count / (double)PageSize);
+		}
+	}
+
+	private int PageNumber => TotalPages == 0 ? 1 : _pageIndex + 1;
+	private bool HasPrevPage => _pageIndex > 0;
+	private bool HasNextPage => _filteredRows.Count > 0 && _pageIndex + 1 < TotalPages;
+
+	private void GoPrev() { if (HasPrevPage) _pageIndex--; }
+	private void GoNext() { if (HasNextPage) _pageIndex++; }
+
+	private void ResetAndApplyFilters()
+	{
+		_pageIndex = 0;
+		ApplyFilters();
+	}
+
+	private void ApplyFilters()
+	{
+		var from = FromDate.Date;
+		var to = ToDate.Date;
+		if (to < from) (to, from) = (from, to);
+
+		_filteredRows = Rows
+			.Where(r => r.PumpId == SelectedPumpId)
+			.Where(r => r.Timestamp.Date >= from && r.Timestamp.Date <= to)
+			.ToList();
+		ClampPageIndex();
+	}
+
+	private void ClampPageIndex()
+	{
+		if (_filteredRows.Count == 0) { _pageIndex = 0; return; }
+		var maxIndex = TotalPages - 1;
+		if (_pageIndex > maxIndex) _pageIndex = maxIndex;
+	}
+
+	private Task ExportExcel() => Task.CompletedTask;
+
+	private sealed record PumpOption(string Id, string Name);
+
+	private sealed record MonitorRow(
+		string PumpId,
+		DateTime Timestamp,
+		string Date,
+		string Time,
+		string TempA,
+		string TempB,
+		string TempC,
+		string Vrs,
+		string Vst,
+		string Vtr,
+		string CurrentR,
+		string CurrentS,
+		string CurrentT,
+		string Runtime,
+		string TankOut,
+		string TankIn);
+}

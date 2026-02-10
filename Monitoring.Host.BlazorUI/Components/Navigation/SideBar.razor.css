@@ -1,0 +1,195 @@
+.sidebar {
+    width: 370px;
+    background-color: #03344B;
+    background-image: linear-gradient(180deg, #03344B 0%, #03344B 22%, #08A0B1 100%);
+    color: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    padding: 0;
+}
+
+.sidebar-inner {
+    height: calc(100vh - 7.5rem);
+    display: flex;
+    flex-direction: column;
+}
+
+.brand-row {
+    padding: 0.5rem 1rem 1rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    margin-bottom: 0.5rem;
+}
+
+.brand {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: auto;
+}
+
+.nav ::deep .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 64px;
+    padding: 0.95rem 0.9rem;
+    color: rgba(255, 255, 255, 0.88);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    background: transparent;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.nav-icon svg {
+    display: block;
+}
+
+.nav-text {
+    font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+    color: #ffffff;
+}
+
+.nav ::deep .nav-link:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.nav ::deep .nav-link:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+.nav ::deep .nav-link.active {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    background: #ffffff;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 0.75rem 0.9rem;
+}
+
+.collapse-button {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border: 0;
+    background: transparent;
+    color: #0891b2;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.footer-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.collapse-button:hover {
+    color: #0e7490;
+}
+
+.collapse-button:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+    border-radius: 0.4rem;
+}
+
+@media (max-width: 640.98px) {
+    .sidebar {
+        position: fixed;
+        top: 7.5rem;
+        bottom: 0;
+        left: 0;
+        transform: translateX(-105%);
+        transition: transform 160ms ease;
+        z-index: 20;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    }
+
+    .sidebar.is-open {
+        transform: translateX(0);
+    }
+
+    .sidebar-inner {
+        height: calc(100vh - 7.5rem);
+    }
+}
+
+@media (min-width: 641px) {
+    .sidebar {
+        transition: width 180ms ease;
+    }
+
+    .sidebar.is-collapsed {
+        width: 0;
+        background: transparent;
+        background-image: none;
+    }
+
+    .sidebar.is-collapsed .sidebar-inner {
+        width: 0;
+    }
+
+    .sidebar.is-collapsed .nav {
+        display: none;
+    }
+
+    .sidebar.is-collapsed .sidebar-footer {
+        background: transparent;
+        border-top: 0;
+        padding: 0;
+    }
+
+    .sidebar.is-collapsed .collapse-button {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        z-index: 30;
+        width: 52px;
+        height: 52px;
+        justify-content: center;
+        padding: 0;
+        border-radius: 14px;
+        background: rgba(8, 160, 177, 0.95);
+        color: #ffffff;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    .sidebar.is-collapsed .collapse-button:hover {
+        background: rgba(8, 160, 177, 1);
+        color: #ffffff;
+    }
+
+    .sidebar.is-collapsed .collapse-button > :not(.footer-icon) {
+        display: none;
+    }
+}

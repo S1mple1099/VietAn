@@ -1,0 +1,96 @@
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<header class="topbar">
+    <div class="left">
+        <button type="button" class="brand-logo-button" @onclick="NavigateHome">
+            <img src="images/logo.jpg" alt="VanAnWeb" />
+        </button>
+    </div>
+    <div class="right">
+        <div class="topbar-time">@_timeText</div>
+
+        <button type="button" class="profile-button">
+            <img src="icon/account.svg" alt="avatar" class="avatar" />
+            <span class="profile-name">Nguyen Van A</span>
+            <span class="profile-caret" aria-hidden="true">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" focusable="false">
+                    <path d="M5.3 7.7a1 1 0 0 1 1.4 0L10 11l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" />
+                </svg>
+            </span>
+        </button>
+    </div>
+</header>
+
+@code {
+    private TimeZoneInfo _timeZone = TimeZoneInfo.Local;
+    private string _timeText = string.Empty;
+    private CancellationTokenSource? _clockCts;
+
+    protected override void OnInitialized()
+    {
+        _timeZone = GetPreferredTimeZone();
+        UpdateTimeText();
+
+        _clockCts = new CancellationTokenSource();
+        _ = RunClockAsync(_clockCts.Token);
+    }
+
+    private void NavigateHome()
+        => Navigation.NavigateTo("/");
+
+    private async Task RunClockAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (await timer.WaitForNextTickAsync(token))
+        {
+            UpdateTimeText();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void UpdateTimeText()
+    {
+        var utcNow = DateTimeOffset.UtcNow;
+        var local = TimeZoneInfo.ConvertTime(utcNow, _timeZone);
+        var offset = _timeZone.GetUtcOffset(local);
+        _timeText = $"GMT{FormatGmtOffset(offset)}: {local:dd/MM/yyyy HH:mm:ss}";
+    }
+
+    private static string FormatGmtOffset(TimeSpan offset)
+    {
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs = offset.Duration();
+
+        if (abs.Minutes == 0)
+        {
+            return $"{sign}{abs.Hours}";
+        }
+
+        return $"{sign}{abs.Hours:00}:{abs.Minutes:00}";
+    }
+
+    private static TimeZoneInfo GetPreferredTimeZone()
+    {
+        var candidates = new[] { "SE Asia Standard Time", "Asia/Ho_Chi_Minh" };
+        foreach (var id in candidates)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return TimeZoneInfo.Local;
+    }
+
+    public void Dispose()
+    {
+        _clockCts?.Cancel();
+        _clockCts?.Dispose();
+    }
+}
