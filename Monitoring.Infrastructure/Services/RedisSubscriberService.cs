@@ -33,12 +33,13 @@ public class RedisSubscriberService : BackgroundService
         {
             try
             {
-                if (string.IsNullOrEmpty(message))
+                var messageStr = message.ToString();
+                if (string.IsNullOrEmpty(messageStr))
                 {
                     return;
                 }
 
-                var tagUpdate = JsonSerializer.Deserialize<TagUpdateDto>(message);
+                var tagUpdate = JsonSerializer.Deserialize<TagUpdateDto>(messageStr);
                 if (tagUpdate == null)
                 {
                     _logger.LogWarning("Failed to deserialize tag update: {Message}", message);
