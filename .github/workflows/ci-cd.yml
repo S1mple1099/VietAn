@@ -3,7 +3,9 @@
 #
 # GitHub Secrets cần cấu hình (Settings > Secrets and variables > Actions):
 #   - DOCKER_USERNAME, DOCKER_PASSWORD: Docker Hub
-#   - SERVER_SSH_KEY, SERVER_HOST, SERVER_USER: Deploy SSH
+#   - SSH_PRIVATE_KEY: Private key SSH (nội dung file id_rsa hoặc key tương đương)
+#   - SSH_USER: User đăng nhập SSH (vd: root, ubuntu)
+#   - SSH_HOST: IP hoặc domain server (vd: 192.168.1.100, myserver.com)
 #   - CONNECTION_STRING: (tùy chọn) SQLite connection string - mặc định Data Source=/data/app.db
 #   - JWT_KEY: Khóa JWT cho Production (bắt buộc)
 
@@ -87,27 +89,33 @@ jobs:
     name: Deploy to Server
     runs-on: ubuntu-latest
     needs: docker
-    # Inject secrets dưới dạng env - GitHub tự động MASK không in ra log khi giá trị là secret
+    # Inject secrets - GitHub tự động MASK không in ra log
     env:
       CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
       JWT_KEY: ${{ secrets.JWT_KEY }}
     steps:
+      # Bước 1: Ghi private key vào file, set quyền 600 (chỉ owner đọc/ghi)
+      # KHÔNG echo/print private key - GitHub mask secret tự động
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Thêm host vào known_hosts để tránh prompt "Are you sure you want to continue?"
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # Deploy: truyền secrets qua env, KHÔNG echo/print - docker compose đọc từ env trên remote
-      - name: Deploy via SSH (pull image, compose down/up)
+      # Bước 2: SSH vào server và chạy lệnh deploy
+      # Format: ssh -i <key> -o <options> user@host "remote_command"
+      - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ~/app 2>/dev/null || cd /opt/app 2>/dev/null || true && \
-             export CONNECTION_STRING='$CONNECTION_STRING' && \
-             export JWT_KEY='$JWT_KEY' && \
-             docker compose pull && \
-             docker compose down && \
-             docker compose up -d && \
-             docker image prune -f"
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+              "cd ~/app 2>/dev/null || cd /opt/app 2>/dev/null || true && \
+               export CONNECTION_STRING='$CONNECTION_STRING' && \
+               export JWT_KEY='$JWT_KEY' && \
+               docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest && \
+               docker compose pull && \
+               docker compose down && \
+               docker compose up -d && \
+               docker image prune -f"
