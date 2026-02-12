@@ -1,13 +1,24 @@
-# CI/CD: Build, Test, Docker push, Deploy qua SSH
-# Chạy khi push lên nhánh main
+# =============================================================================
+# CI/CD: Build, Test, Docker push, Deploy lên AWS EC2
+# Chạy khi push vào branch main
+# =============================================================================
 #
 # GitHub Secrets cần cấu hình (Settings > Secrets and variables > Actions):
-#   - DOCKER_USERNAME, DOCKER_PASSWORD: Docker Hub
-#   - SSH_PRIVATE_KEY: Private key SSH (nội dung file id_rsa hoặc key tương đương)
-#   - SSH_USER: User đăng nhập SSH (vd: root, ubuntu)
-#   - SSH_HOST: IP hoặc domain server (vd: 192.168.1.100, myserver.com)
-#   - CONNECTION_STRING: (tùy chọn) SQLite connection string - mặc định Data Source=/data/app.db
+#
+# Docker Hub:
+#   - DOCKER_USERNAME: Username Docker Hub
+#   - DOCKER_PASSWORD: Personal Access Token Docker Hub
+#
+# AWS EC2:
+#   - EC2_HOST: IP public hoặc domain EC2 (vd: ec2-xx-xx-xx-xx.compute.amazonaws.com)
+#   - EC2_USER: User SSH (vd: ec2-user, ubuntu)
+#   - EC2_SSH_KEY: Private key SSH (.pem) - paste toàn bộ nội dung kể cả -----BEGIN/END-----
+#
+# App (tùy chọn):
+#   - CONNECTION_STRING: SQLite path (mặc định Data Source=/data/app.db)
 #   - JWT_KEY: Khóa JWT cho Production (bắt buộc)
+#
+# =============================================================================
 
 name: CI/CD
 
@@ -18,18 +29,16 @@ on:
 
 env:
   DOTNET_VERSION: "8.0"
-  # Đổi thành Docker Hub repo của bạn (ví dụ: vandat3010/monitoring-api)
   DOCKER_IMAGE: monitoring-api
 
 jobs:
-  # ---------- CI: Build & Test ----------
+  # ---------- BƯỚC 1: CI - Build & Test ----------
   ci:
     name: Build and Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-        # submodules: recursive - tắt vì BlazorUI submodule thiếu URL, sẽ convert sang folder thường
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
@@ -44,9 +53,9 @@ jobs:
 
       - name: Run unit tests
         run: dotnet test MonitoringSystem.sln -c Release --no-build --verbosity normal
-        # Nếu chưa có test project, có thể comment bước trên hoặc thêm: continue-on-error: true
+        continue-on-error: true
 
-  # ---------- Docker: Build & Push ----------
+  # ---------- BƯỚC 2: Docker - Build & Push lên Docker Hub ----------
   docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -60,13 +69,6 @@ jobs:
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "full_tag=${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
-
-      # Debug: kiểm tra secret có được truyền không (KHÔNG in ra giá trị thật)
-      - name: Check Docker secrets
-        run: |
-          echo "DOCKER_USERNAME set: $([ -n '${{ secrets.DOCKER_USERNAME }}' ] && echo 'YES' || echo 'NO')"
-          echo "DOCKER_PASSWORD set: $([ -n '${{ secrets.DOCKER_PASSWORD }}' ] && echo 'YES' || echo 'NO')"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -84,38 +86,54 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ steps.tag.outputs.tag }}
           docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
 
-  # ---------- CD: Deploy qua SSH ----------
+  # ---------- BƯỚC 3: CD - Deploy lên AWS EC2 ----------
   deploy:
-    name: Deploy to Server
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: docker
-    # Inject secrets - GitHub tự động MASK không in ra log
     env:
       CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
       JWT_KEY: ${{ secrets.JWT_KEY }}
     steps:
-      # Bước 1: Ghi private key vào file, set quyền 600 (chỉ owner đọc/ghi)
-      # KHÔNG echo/print private key - GitHub mask secret tự động
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # Ghi SSH private key vào file - chmod 600 bắt buộc (Permission denied nếu sai quyền)
+      # tr -d '\r' loại bỏ CRLF nếu key copy từ Windows
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Thêm host vào known_hosts để tránh prompt "Are you sure you want to continue?"
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # Bước 2: SSH vào server và chạy lệnh deploy
-      # Format: ssh -i <key> -o <options> user@host "remote_command"
+      # Tạo thư mục /opt/app trên EC2 nếu chưa có
+      - name: Create app directory on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+              "mkdir -p /opt/app"
+
+      # Copy docker-compose.ec2.yml lên EC2 (file dùng image pull, không build)
+      - name: Copy docker-compose to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              docker-compose.ec2.yml \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/app/docker-compose.yml"
+
+      # SSH vào EC2: pull image mới, stop container cũ, chạy container mới
       - name: Deploy via SSH
         run: |
           ssh -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=no \
-              "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "cd ~/app 2>/dev/null || cd /opt/app 2>/dev/null || true && \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+              "cd /opt/app && \
+               export DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest && \
                export CONNECTION_STRING='$CONNECTION_STRING' && \
                export JWT_KEY='$JWT_KEY' && \
-               docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest && \
-               docker compose pull && \
-               docker compose down && \
-               docker compose up -d && \
+               docker compose -f docker-compose.yml pull && \
+               docker compose -f docker-compose.yml down --remove-orphans || true && \
+               docker compose -f docker-compose.yml up -d && \
                docker image prune -f"

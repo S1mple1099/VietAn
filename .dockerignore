@@ -1,0 +1,61 @@
+# =============================================================================
+# .dockerignore - Loại trừ file không cần cho Docker build
+# Giảm context size, tăng tốc build, tránh copy file nhạy cảm
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+
+# Local / Secrets
+.env
+*.env
+secrets.json
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+**/TestResults/
+**/*.Tests/
+**/coverage/
+
+# Misc
+*.bak
+*.tmp
+*.swp
+.history/
