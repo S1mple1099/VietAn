@@ -12,7 +12,7 @@
 # AWS EC2:
 #   - EC2_HOST: IP public hoặc domain EC2 (vd: ec2-xx-xx-xx-xx.compute.amazonaws.com)
 #   - EC2_USER: User SSH (vd: ec2-user, ubuntu)
-#   - EC2_SSH_KEY: Private key SSH (.pem) - paste toàn bộ nội dung kể cả -----BEGIN/END-----
+#   - EC2_SSH_KEY: Private key .pem đã BASE64 encode (xem hướng dẫn bên dưới)
 #
 # App (tùy chọn):
 #   - CONNECTION_STRING: SQLite path (mặc định Data Source=/data/app.db)
@@ -98,12 +98,13 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # Ghi SSH private key vào file - chmod 600 bắt buộc (Permission denied nếu sai quyền)
-      # tr -d '\r' loại bỏ CRLF nếu key copy từ Windows
+      # Ghi SSH private key: EC2_SSH_KEY phải là base64 của file .pem (tránh lỗi libcrypto/format)
+      # Base64 encode: Linux/Mac: base64 -w 0 mykey.pem | pbcopy
+      #                Windows PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("mykey.pem"))
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
@@ -133,7 +134,7 @@ jobs:
                export DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest && \
                export CONNECTION_STRING='$CONNECTION_STRING' && \
                export JWT_KEY='$JWT_KEY' && \
-               docker compose -f docker-compose.yml pull && \
-               docker compose -f docker-compose.yml down --remove-orphans || true && \
-               docker compose -f docker-compose.yml up -d && \
+               docker-compose -f docker-compose.yml pull && \
+               docker-compose -f docker-compose.yml down --remove-orphans || true && \
+               docker-compose -f docker-compose.yml up -d && \
                docker image prune -f"
