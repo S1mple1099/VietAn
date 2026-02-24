@@ -1,0 +1,21 @@
+# =============================================================================
+# ConfigMap - Non-sensitive application configuration
+# =============================================================================
+# - Override via kubectl or Kustomize for different environments
+# - Never store secrets here (use Secret)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+  labels:
+    app: monitoring-api
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Jwt__Issuer: "MonitoringSystem"
+  Jwt__Audience: "MonitoringSystem"
+  Jwt__ExpirationHours: "8"
+  Logging__LogLevel__Default: "Information"
+  Logging__LogLevel__Microsoft.AspNetCore: "Warning"
+  Logging__LogLevel__Microsoft.EntityFrameworkCore: "Warning"
+  ConnectionStrings__Redis: "redis:6379,abortConnect=false"

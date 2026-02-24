@@ -1,0 +1,20 @@
+# =============================================================================
+# Service - ClusterIP, port 80 -> 8080
+# =============================================================================
+# Ingress or LoadBalancer in front for external access
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-api
+  labels:
+    app: monitoring-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: monitoring-api

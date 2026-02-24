@@ -1,0 +1,85 @@
+# =============================================================================
+# Deployment - RollingUpdate, probes, resources
+# =============================================================================
+# SQLite: use replicas: 1 (ReadWriteOnce PVC allows single pod)
+# For 3+ replicas: migrate to PostgreSQL and use external DB service
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring-api
+  labels:
+    app: monitoring-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: monitoring-api
+  template:
+    metadata:
+      labels:
+        app: monitoring-api
+    spec:
+      containers:
+        - name: monitoring-api
+          image: DOCKERHUB_USER/monitoring-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: monitoring-config
+            - secretRef:
+                name: monitoring-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: monitoring-data-pvc
+---
+# PVC for SQLite (single-writer - consider external DB for multi-replica)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: monitoring-data-pvc
+  labels:
+    app: monitoring-api
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

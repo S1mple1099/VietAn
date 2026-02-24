@@ -10,6 +10,8 @@ using Monitoring.Host.BlazorUI.Services;
 using Monitoring.Host.Hubs;
 using Monitoring.Host.Middleware;
 using Monitoring.Host.Services;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Monitoring.Infrastructure;
 using Monitoring.Infrastructure.Data;
 using Monitoring.Infrastructure.Persistence;
@@ -19,12 +21,8 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Docker: ép Kestrel listen 0.0.0.0 (tránh ERR_EMPTY_RESPONSE)
-if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
-    File.Exists("/.dockerenv"))
-{
-    builder.WebHost.UseUrls("http://0.0.0.0:80");
-}
+// Kestrel: use ASPNETCORE_URLS from env (Docker/K8s set http://+:8080)
+// No localhost binding - required for containerized deployment
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -36,11 +34,16 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// Khi Redis/BackgroundService lỗi, không tắt toàn bộ host
+// Graceful shutdown: allow in-flight requests to complete (K8s sends SIGTERM)
 builder.Services.Configure<Microsoft.Extensions.Hosting.HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = Microsoft.Extensions.Hosting.BackgroundServiceExceptionBehavior.Ignore;
+    options.ShutdownTimeout = TimeSpan.FromSeconds(30);
 });
+
+// Health checks for K8s readiness/liveness probes
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<MonitoringDbContext>("db", failureStatus: HealthStatus.Unhealthy, tags: new[] { "ready" });
 
 // Blazor Server
 builder.Services.AddRazorComponents()
@@ -309,7 +312,30 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Endpoint chẩn đoán - gọi sớm, không qua Blazor
+// Health: liveness (no deps) + readiness (includes DB check)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            totalDuration = report.TotalDuration.TotalMilliseconds,
+            entries = report.Entries.Select(e => new
+            {
+                e.Key,
+                status = e.Value.Status.ToString(),
+                e.Value.Description
+            })
+        });
+        await context.Response.WriteAsync(result);
+    }
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }); // Empty = healthy if reachable
+
 app.MapGet("/ping", () => Results.Ok("pong"));
 
 app.MapControllers();

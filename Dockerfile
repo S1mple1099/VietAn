@@ -1,13 +1,15 @@
 # =============================================================================
-# Multi-stage Dockerfile - Production .NET 8
-# Tối ưu layer cache: copy .csproj trước, restore, rồi mới copy source
+# Production Dockerfile - Multi-stage, port 8080, optimized for K8s
+# =============================================================================
+# - ASPNETCORE_URLS=http://+:8080 per requirement (bind all interfaces)
+# - No localhost binding
+# - Minimal runtime image
 # =============================================================================
 
 # ---------- STAGE 1: Restore ----------
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
 WORKDIR /src
 
-# Copy solution và .csproj trước để tận dụng cache (restore chỉ chạy lại khi thay đổi)
 COPY MonitoringSystem.sln ./
 COPY Monitoring.Domain/*.csproj ./Monitoring.Domain/
 COPY Monitoring.Application/*.csproj ./Monitoring.Application/
@@ -21,7 +23,6 @@ RUN dotnet restore
 FROM restore AS build
 WORKDIR /src
 
-# Copy toàn bộ source (restore đã xong ở layer trước)
 COPY Monitoring.Domain/ ./Monitoring.Domain/
 COPY Monitoring.Application/ ./Monitoring.Application/
 COPY Monitoring.Infrastructure/ ./Monitoring.Infrastructure/
@@ -32,6 +33,7 @@ RUN dotnet publish Monitoring.Host/Monitoring.Host.csproj \
     -c Release \
     -o /app/publish \
     -p:UseAppHost=false \
+    -p:EnableCompressionInSingleFile=false \
     --no-restore
 
 # ---------- STAGE 3: Runtime ----------
@@ -40,15 +42,17 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-# Production settings
+# Production: bind to 8080 on all interfaces (K8s standard)
 ENV DOTNET_RUNNING_IN_CONTAINER=true
-ENV ASPNETCORE_URLS=http://0.0.0.0:80
+ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_HTTP_PORTS=8080
 
-# Connection strings - override bằng env khi chạy (docker-compose)
-ENV ConnectionStrings__DefaultConnection=Data Source=/data/app.db
+# Non-sensitive defaults - override via ConfigMap/Secret in K8s
 ENV ConnectionStrings__Redis=redis:6379,abortConnect=false
+ENV Jwt__Issuer=MonitoringSystem
+ENV Jwt__Audience=MonitoringSystem
 
-EXPOSE 80
+EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "Monitoring.Host.dll"]
