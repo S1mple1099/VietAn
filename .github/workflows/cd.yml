@@ -1,9 +1,9 @@
 # =============================================================================
-# CD - Deploy to Kubernetes after CI success
+# CD - Deploy to Kubernetes after CI success (self-hosted runner)
 # =============================================================================
 # Triggers: workflow_run of CI on success
-# Secrets: KUBECONFIG (base64-encoded kubeconfig for cluster access)
-#          DOCKER_USERNAME (for image reference)
+# Runner: self-hosted (EC2) with kubectl + kubeconfig đã cấu hình sẵn (~/.kube/config)
+# Secrets: DOCKER_USERNAME (for image reference)
 # =============================================================================
 name: CD
 
@@ -18,22 +18,11 @@ on:
 jobs:
   deploy:
     name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: "latest"
-
-      - name: Configure kubectl
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
 
       - name: Apply manifests
         run: |
