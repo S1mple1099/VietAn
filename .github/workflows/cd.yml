@@ -36,4 +36,12 @@ jobs:
 
       - name: Rollout status
         run: |
-          kubectl rollout status deployment/monitoring-api -n default --timeout=300s
+          # Chờ tối đa 2 phút, nếu không sẵn sàng thì in diagnostic rồi fail
+          set -e
+          if ! kubectl rollout status deployment/monitoring-api -n default --timeout=120s; then
+            echo "Deployment not ready after 120s. Dumping diagnostics..."
+            kubectl get pods -n default -o wide
+            kubectl describe deployment/monitoring-api -n default || true
+            kubectl describe pods -n default | sed -n '1,300p' || true
+            exit 1
+          fi
